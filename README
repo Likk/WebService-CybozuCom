@@ -1,0 +1,31 @@
+This is Perl module WebService::CybozuCom.
+
+INSTALLATION
+
+WebService::CybozuCom installation is straightforward. If your git is set up,
+you should just be able to do
+
+    % git clone git://github.com/Likk/WebService-CybozuCom.git
+    % cd WebService::CybozuCom
+
+Download it, unpack it, then build it as per the usual:
+
+    % perl Makefile.PL
+    % make && make test
+
+Then install it:
+
+    % make install
+
+WebService::CybozuCom installation is straightforward. If your cpanm is set up,
+    % cpanm install git://github.com/Likk/WebService-CybozuCom.git
+
+DOCUMENTATION
+
+WebService::CybozuCom documentation is available as in POD. So you can do:
+
+    % perldoc WebService::CybozuCom
+
+to read the documentation online with your favorite pager.
+
+Likkradyus
