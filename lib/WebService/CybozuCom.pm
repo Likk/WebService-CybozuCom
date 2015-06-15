@@ -33,6 +33,7 @@ use warnings;
 use utf8;
 use Carp;
 use Encode;
+use JSON qw/encode_json decode_json/;
 use Web::Scraper;
 use WWW::Mechanize;
 
@@ -150,6 +151,23 @@ sub post {
     return $self->_content($res);
 }
 
+=head2 post_json
+
+mech post json content with interval.
+
+=cut
+sub post_json {
+    my $self  = shift;
+    my $url   = shift;
+    my $param = shift;
+    $self->_sleep_interval;
+    my $res = $self->mech->post($url,
+        'Content-Type' => 'application/json',
+        'Content'      => encode_json($param),
+    );
+    return $self->_content($res);
+}
+
 =head2 get
 
 mech get with interval.
@@ -174,9 +192,10 @@ sub conf {
     unless ($self->{conf}){
         my $base_url =  $self->base_url();
         my $conf = {
-            pre_login => sprintf("%s/login",                           $base_url),
-            enter     => sprintf("%s/api/auth/login.json?_lc=ja_JP",   $base_url),
-            bulletin  => sprintf("%s/o/ag.cgi?page=BulletinIndex",     $base_url),
+            pre_login => sprintf("%s/login",                            $base_url),
+            get_token => sprintf("%s/api/auth/getToken.json?_lc=ja_JP", $base_url),
+            enter     => sprintf("%s/api/auth/login.json?_lc=ja_JP",    $base_url),
+            bulletin  => sprintf("%s/o/ag.cgi?page=BulletinIndex",      $base_url),
         };
         $self->{conf} = $conf;
     }
@@ -192,7 +211,7 @@ get and set request_token
 sub request_token {
     my $self = shift;
     unless($self->{request_token}){
-        $self->post($self->conf->{pre_login});
+        $self->get($self->conf->{pre_login},);
         my $content = $self->last_content;
         if($content =~ m{cybozu.data.REQUEST_TOKEN\s=\s'(.*)?';}){
             $self->{request_token} = $1;
@@ -215,13 +234,18 @@ sub login {
     my $self = shift;
 
     {
+        my $token = $self->request_token();
+        $self->post_json( $self->conf->{get_token}, {'__REQUEST_TOKEN__' => $token });
+
         my $params = {
             username            => $self->{username},
             password            => $self->{password},
             keepUsername        => undef,
-            '__REQUEST_TOKEN__' => $self->request_token(),
+            redirect            => '',
+            '__REQUEST_TOKEN__' => $token,
         };
-        $self->post($self->conf->{enter}, $params);
+
+        $self->post_json($self->conf->{enter}, $params);
     }
 }
 
