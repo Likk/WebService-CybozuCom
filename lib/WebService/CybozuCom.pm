@@ -22,6 +22,11 @@ package WebService::CybozuCom;
     warn YAML::Dump $row;
   }
 
+  my $schedule = $c->show_schedule
+  for my $row (@schedule){
+    warn YAML::Dump $row;
+  }
+
 =head1 DESCRIPTION
 
   WebService::CybozuCom is scraping library client for perl at cybozu.com
@@ -36,6 +41,7 @@ use Encode;
 use JSON qw/encode_json decode_json/;
 use Web::Scraper;
 use WWW::Mechanize;
+use Text::Trim qw/trim/;
 
 our $VERSION = '1.00';
 
@@ -196,6 +202,17 @@ sub conf {
             get_token => sprintf("%s/api/auth/getToken.json?_lc=ja_JP", $base_url),
             enter     => sprintf("%s/api/auth/login.json?_lc=ja_JP",    $base_url),
             bulletin  => sprintf("%s/o/ag.cgi?page=BulletinIndex",      $base_url),
+            schedule  => sub {
+                my $date = shift;
+                if($date){
+                    croak 'argment date format is yyyy/mm/dd' unless $date =~ m{\d{4}/\d{2}/\d{2}};
+                    $date =~s{/}{.}g;
+                    return sprintf("%s/o/ag.cgi?page=ScheduleUserDay&Date=da.%s",            $base_url, $date);
+                }
+                else{
+                  sprintf("%s/o/ag.cgi?page=ScheduleUserDay",                       $base_url);
+                }
+            },
         };
         $self->{conf} = $conf;
     }
@@ -262,6 +279,22 @@ sub show_bulletin {
     return $bulletin;
 }
 
+=head2 show_schedule
+
+list schedule a day.
+
+=cut
+
+sub show_schedule {
+    my $self = shift;
+    my %args = @_;
+    my $date = $args{date};
+    my $url  = $self->conf->{schedule}($date);
+    $self->get($url);
+    my $schedule = $self->_parse_schedule();
+    return $schedule;
+}
+
 
 =head1 PRIVATE METHODS.
 
@@ -308,6 +341,64 @@ sub _parse_bulletin {
     }
     return $bulletins;
 }
+
+=item B<_parse_schedule>
+
+parse title, time and url from schedule.
+
+=cut
+
+sub _parse_schedule {
+    my $self = shift;
+    my $html = $self->last_content;
+    my $schedule = [];
+
+    #banner event
+    {
+        my $scraper_banner_event = scraper {
+            process '//a[@class="bannerevent"]', 'data[]' => scraper {
+                process '*',        title       => '@title',
+                                    url         => '@href'
+            };
+            result 'data';
+        };
+        my $banner_event_list = $scraper_banner_event->scrape($html);
+
+        for my $row (@$banner_event_list){
+            next unless $row->{title};
+            my $row = {
+                url         => join('/', $self->base_url() , 'o', $row->{url}),
+                title       => $row->{title},
+                time_string => undef,
+            };
+            push @$schedule, $row;
+        }
+    }
+
+    #time event
+    {
+        my $scraper_event = scraper {
+            process '//a[@class="event"]', 'data[]' => scraper {
+                process '*',         title       => '@title',
+                                    url         => '@href';
+                process '//span[1]', time        => 'TEXT';
+            };
+            result 'data';
+        };
+        my $event_list = $scraper_event->scrape($html);
+        for my $row (@$event_list){
+            next unless $row->{title};
+            my $row = {
+                url         => join('/', $self->base_url() , 'o', $row->{url}),
+                title       => $row->{title},
+                time_string => trim($row->{time}),
+            };
+            push @$schedule, $row;
+        }
+    }
+    return $schedule;
+}
+
 
 =item B<_sleep_interval>
 
